@@ -1,201 +1,143 @@
 import tkinter as tk
+from tkinter import ttk, messagebox
+from PIL import Image, ImageTk
 import mysql.connector
-from tkinter import messagebox
-
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
- 
-host = os.getenv('HOST') # Change to your MySQL server IP if remote
-user = os.getenv('USER') # Replace with your MySQL username
-password = os.getenv('PASSWORD') # Replace with your MySQL password
-database = os.getenv('DATABASE') # Replace with your database name
+# ✅ Database Connection
+def connect_db():
+    return mysql.connector.connect(host="localhost", user="your user name", password="password", database="dbname")
 
+def execute_query(query, params=()):
+    con = connect_db()
+    cursor = con.cursor()
+    cursor.execute(query, params)
+    con.commit()
+    con.close()
 
-# Function to establish connection
-def establish_connection():
-    try:
-        conn = mysql.connector.connect(
-            host=host,
-            user=user,
-            password=password,
-            database=database
-        )
-        return conn
-    except mysql.connector.Error as err:
-        messagebox.showerror("Database Error", f"Error: {err}")
-        return None
+# ✅ CRUD Operations
+def insert_data():
+    execute_query("INSERT INTO students (id, fullname, age, course, gender) VALUES (%s, %s, %s, %s, %s)", 
+                  (id_var.get(), name_var.get(), age_var.get(), course_var.get(), gender_var.get()))
+    refresh_data("Record inserted successfully!")
 
-# Function to show all records in a message box
-def show_table():
-    conn = establish_connection()
-    if conn is None:
-        return
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM students")
-    result = cur.fetchall()
-    conn.close()
+def update_data():
+    execute_query("UPDATE students SET fullname=%s, age=%s, course=%s, gender=%s WHERE id=%s", 
+                  (name_var.get(), age_var.get(), course_var.get(), gender_var.get(), id_var.get()))
+    refresh_data("Record updated successfully!")
 
-    if not result:
-        messagebox.showinfo("Info", "No records found!")
-        return
+def delete_data():
+    execute_query("DELETE FROM students WHERE id=%s", (id_var.get(),))
+    refresh_data("Record deleted successfully!")
 
-    data = "\n".join([f"ID: {rec[0]}, Name: {rec[1]}, Age: {rec[2]}, Course: {rec[3]}, Gender: {rec[4]}" for rec in result])
-    messagebox.showinfo("Student Records", data)
-
-# Function to delete a record by ID
-def delete():
-    id = entry_id.get()
-    if not id.isdigit():
-        messagebox.showerror("Error", "Invalid ID! Please enter a numeric ID.")
-        return
-
-    conn = establish_connection()
-    if conn is None:
-        return
-    cursor = conn.cursor()
+def fetch_data():
+    con = connect_db()
+    cursor = con.cursor()
+    cursor.execute("SELECT * FROM students")
+    rows = cursor.fetchall()
+    con.close()
     
-    delete_query = "DELETE FROM students WHERE id = %s"
-    cursor.execute(delete_query, (id,))
-    conn.commit()
-    
-    if cursor.rowcount == 0:
-        messagebox.showinfo("Info", "No record found with the given ID.")
-    else:
-        messagebox.showinfo("Success", "Record deleted successfully!")
+    student_table.delete(*student_table.get_children())  
+    for row in rows:
+        student_table.insert("", tk.END, values=row)
 
-    cursor.close()
-    conn.close()
+def refresh_data(msg=""):
+    fetch_data()
+    clear_fields()
+    if msg:
+        messagebox.showinfo("Success", msg)
 
-# Function to save student details
-def save():
+def get_selected(event):
+    selected_item = student_table.focus()
+    values = student_table.item(selected_item, 'values')
+    if values:
+        id_var.set(values[0])
+        name_var.set(values[1])
+        age_var.set(values[2])
+        course_var.set(values[3])
+        gender_var.set(values[4])
 
-    id = entry_id.get()
-    name = entry_name.get()
-    age = entry_age.get()
-    course = entry_course.get()
-    gender = entry_gender.get()
+def clear_fields():
+    id_var.set("")
+    name_var.set("")
+    age_var.set("")
+    course_var.set("")
+    gender_var.set("")
 
-    if not (id and name and age and course and gender):
-        messagebox.showwarning("Warning", "Please fill all fields")
-        return
-
-    if not id.isdigit() or not age.isdigit():
-        messagebox.showerror("Error", "ID and Age must be numeric values.")
-        return
-
-    try:
-        conn = establish_connection()
-        if conn is None:
-            return
-        cursor = conn.cursor()
-
-        insert_query = """
-        INSERT INTO students (id, fullname, age, course, gender)
-        VALUES (%s, %s, %s, %s, %s)
-        """
-        
-        cursor.execute(insert_query, (id, name, age, course, gender))
-        conn.commit()
-        cursor.close()
-        conn.close()
-
-        messagebox.showinfo("Success", "Student details saved to database!")
-
-        # Clear input fields
-        entry_id.delete(0, tk.END)
-        entry_name.delete(0, tk.END)
-        entry_age.delete(0, tk.END)
-        entry_course.delete(0, tk.END)
-        entry_gender.delete(0, tk.END)
-
-    except mysql.connector.IntegrityError:
-        messagebox.showerror("Database Error", "ID already exists! Use a unique ID.")
-    except mysql.connector.Error as err:
-        messagebox.showerror("Database Error", f"Error: {err}")
-
-def update_table():
-    id = entry_id.get()
-    name = entry_name.get()
-    age = entry_age.get()
-    course = entry_course.get()
-    gender = entry_gender.get()
-
-    if not (id and name and age and course and gender):
-        messagebox.showwarning("Warning", "Please fill all fields")
-        return
-
-    if not id.isdigit() or not age.isdigit():
-        messagebox.showerror("Error", "ID and Age must be numeric values.")
-        return
-
-    try:
-        conn = establish_connection()
-        if conn is None:
-            return
-        cursor = conn.cursor()
-
-        update_query = """
-        UPDATE students 
-        SET fullname = %s, age = %s, course = %s, gender = %s  
-        WHERE id = %s
-        """
-        
-        cursor.execute(update_query, (name, age, course, gender, id))  # Corrected order of parameters
-        conn.commit()
-
-        if cursor.rowcount == 0:
-            messagebox.showinfo("Info", "No record found with the given ID.")
-        else:
-            messagebox.showinfo("Success", "Student details updated!")
-
-        cursor.close()
-        conn.close()
-
-        # Clear input fields
-        entry_id.delete(0, tk.END)
-        entry_name.delete(0, tk.END)
-        entry_age.delete(0, tk.END)
-        entry_course.delete(0, tk.END)
-        entry_gender.delete(0, tk.END)
-
-    except mysql.connector.IntegrityError:
-        messagebox.showerror("Database Error", "ID already exists! Use a unique ID.")
-    except mysql.connector.Error as err:
-        messagebox.showerror("Database Error", f"Error: {err}")
-
-
-# GUI Setup
+# ✅ GUI Setup
 root = tk.Tk()
-root.title("Student Form")
-root.geometry("400x500")
+root.title("Student Management System")
+root.geometry("800x600")  
+root.state("zoomed")  
 
-tk.Label(root, text="ID:").grid(row=0, column=0, padx=30, pady=15)
-entry_id = tk.Entry(root)
-entry_id.grid(row=0, column=1)
-
-tk.Label(root, text="Name:").grid(row=1, column=0, padx=30, pady=15)
-entry_name = tk.Entry(root)
-entry_name.grid(row=1, column=1)
-
-tk.Label(root, text="Age:").grid(row=2, column=0, padx=30, pady=15)
-entry_age = tk.Entry(root)
-entry_age.grid(row=2, column=1)
-
-tk.Label(root, text="Course:").grid(row=3, column=0, padx=30, pady=15)
-entry_course = tk.Entry(root)
-entry_course.grid(row=3, column=1)
-
-tk.Label(root, text="Gender:").grid(row=4, column=0, padx=30, pady=15)
-entry_gender = tk.Entry(root)
-entry_gender.grid(row=4, column=1)
+# ✅ Load Background Image
+image_path = r"Image Path" #Change this
 
 
-tk.Button(root, text="Save", command=save).grid(row=5, column=1, pady=5)
-tk.Button(root, text="Delete", command=delete).grid(row=6, column=1, pady=5)
-tk.Button(root, text="Show", command=show_table).grid(row=7, column=1, pady=5)
-tk.Button(root, text="Update", command=update_table).grid(row=8, column=1, pady=5)
+resize_id = None  # ✅ Used to cancel previous resize events
 
+def resize_image(event):
+    """ Resize background image dynamically but optimize performance """
+    global bgv, resize_id
+    
+    if resize_id:
+        root.after_cancel(resize_id)
+    
+    resize_id = root.after(100, lambda: do_resize(event.width, event.height))
 
+def do_resize(new_width, new_height):
+    """ Perform the actual image resize """
+    global bgv
+    image = Image.open(image_path)
+    image = image.resize((new_width, new_height), Image.LANCZOS)
+    bgv = ImageTk.PhotoImage(image)
+    label1.config(image=bgv)
+
+# ✅ Load Initial Image
+if os.path.exists(image_path):
+    try:
+        image = Image.open(image_path)
+        image = image.resize((root.winfo_screenwidth(), root.winfo_screenheight()), Image.LANCZOS)
+        bgv = ImageTk.PhotoImage(image)
+        label1 = tk.Label(root, image=bgv)
+        label1.place(x=0, y=0, relwidth=1, relheight=1)
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to load image: {str(e)}")
+else:
+    messagebox.showerror("File Not Found", f"Image file not found: {image_path}")
+
+# ✅ Bind Resize Event
+root.bind("<Configure>", resize_image)
+
+# ✅ Variables
+id_var, name_var, age_var, course_var, gender_var = tk.StringVar(), tk.StringVar(), tk.StringVar(), tk.StringVar(), tk.StringVar()
+
+# ✅ Form
+frame = tk.Frame(root, bg="#7be1ff", padx=10, pady=10)
+frame.pack(pady=10)
+
+for i, (label, var) in enumerate([("ID", id_var), ("Name", name_var), ("Age", age_var), ("Course", course_var), ("Gender", gender_var)]):
+    ttk.Label(frame, text=label).grid(row=i, column=0, padx=5, pady=5)
+    ttk.Entry(frame, textvariable=var, width=30).grid(row=i, column=1, padx=5, pady=5)
+
+# ✅ Buttons
+button_frame = tk.Frame(root, bg="#7be1ff")
+button_frame.pack(pady=10)
+for i, (text, command) in enumerate([("Insert", insert_data), ("Update", update_data), 
+                                     ("Delete", delete_data), ("Clear", clear_fields)]):
+    ttk.Button(button_frame, text=text, command=command).grid(row=0, column=i, padx=10)
+
+# ✅ Table
+columns = ("id", "fullname", "age", "course", "gender")
+student_table = ttk.Treeview(root, columns=columns, show="headings", height=10)
+for col in columns:
+    student_table.heading(col, text=col.capitalize())
+    student_table.column(col, width=120, anchor="center")
+student_table.pack(pady=10, padx=10, fill=tk.BOTH, expand=True)
+student_table.bind("<ButtonRelease-1>", get_selected)
+
+# ✅ Fetch Data Initially
+fetch_data()
+
+# ✅ Start GUI
 root.mainloop()
