@@ -1,0 +1,17 @@
+# 🎓 Student Management System (Tkinter + MySQL)
+
+A simple GUI-based Student Management System built with:
+- Python (Tkinter)
+- MySQL Database
+- Pillow (for background image handling)
+
+# 🚀 Features
+- Add, update, delete, and view student records
+- Background image with auto-resizing
+- Clean UI with Tkinter and ttk
+
+# 🛠️ Installation
+1. Clone this repo:
+   bash
+   git clone https://github.com/Sagar-088/First-Mini-Project.git
+
